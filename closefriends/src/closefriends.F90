@@ -2,8 +2,10 @@ module closefriends
 
    implicit none
 
+   !----------------------------------------------------------------------------
    interface sort_hashes
       subroutine sort_hashes(n, hashes, idx) bind(C)
+         ! performs argsort using C++ sort function
          use iso_c_binding
          integer(c_int), value, intent(in):: n
          integer(c_int), intent(in):: hashes(*)
@@ -13,6 +15,7 @@ module closefriends
 
 contains
 
+   !----------------------------------------------------------------------------
    subroutine rearrange(n, dim, idx, gridhash, x)
       ! rearranges gridhash and x, using the indices obtained from a sort by
       ! key.
@@ -37,9 +40,9 @@ contains
 
    end subroutine rearrange
 
+   !----------------------------------------------------------------------------
    subroutine rearrange_withtmpx(n, dim, idx, gridhash, x, x_tmp)
-      ! rearranges gridhash and x, using the indices obtained from a sort by
-      ! key.
+      ! same as above, except doesn't modify x, and returns x_tmp instead.
 
       implicit none
       integer, intent(in):: n, dim, idx(n)
@@ -106,7 +109,10 @@ contains
 
    end subroutine update_pair_list
 
+   !----------------------------------------------------------------------------
    function idxToHash(dim, idx, ngridx) result(hash)
+      ! function to convert an arbitrary-dimensioned index array to a single
+      ! hash integer
 
       implicit none
       integer, intent(in):: dim, idx(dim), ngridx(dim)
@@ -121,7 +127,10 @@ contains
 
    end function idxToHash
 
+   !----------------------------------------------------------------------------
    function didxTodHash(dim, idx, ngridx) result(hash)
+      ! function to convert incremental, arbitrary-dimensioned, index array to
+      ! a single incremental hash integer
 
       implicit none
       integer, intent(in):: dim, idx(dim), ngridx(dim)
@@ -136,7 +145,10 @@ contains
 
    end function didxTodHash
 
+   !----------------------------------------------------------------------------
    function hashToIdx(dim, hash, ngridx) result(idx)
+      ! function to convert a single hash integer to an arbitrary-dimensioned
+      ! index array
 
       implicit none
       integer, intent(in):: dim, hash, ngridx(dim)
@@ -152,7 +164,9 @@ contains
 
    end function hashToIdx
 
+   !----------------------------------------------------------------------------
    subroutine getAdjacentCellsHashIncrement(dim, ngridx, adjHash)
+      ! function to determine which adjacent cells to search
 
       implicit none
       integer, intent(in):: dim, ngridx(dim)
@@ -169,7 +183,9 @@ contains
 
    end subroutine getAdjacentCellsHashIncrement
 
+   !----------------------------------------------------------------------------
    function coordsToHash(n, dim, x, minx, ngridx, cutoff) result(gridhash)
+      ! function to convert raw double coordinates to integer hashes
 
       implicit none
       integer, intent(in):: n, dim, ngridx(dim)
@@ -183,7 +199,9 @@ contains
 
    end function coordsToHash
 
+   !----------------------------------------------------------------------------
    subroutine cellList(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
+      ! performs the pair search, and reorders x
 
       implicit none
       integer, intent(in):: dim, npoints, maxnpair
@@ -194,30 +212,40 @@ contains
       double precision:: minx(dim), maxx(dim)
       integer, allocatable:: gridhash(:), idx(:), starts(:), adj_cell_hash_increment(:)
 
+      ! determine bounding box from raw coordinates
       minx(:) = minval(x, dim=2)
       maxx(:) = maxval(x, dim=2)
 
+      ! extend bounding box by two cells in each dimensions
       minx(:) = minx(:) - 2.d0*cutoff
       maxx(:) = maxx(:) + 2.d0*cutoff
 
+      ! calculate number of grid cells and adjust maximum extent
       ngridx(:) = int((maxx(:) - minx(:))/cutoff) + 1
       maxx(:) = maxx(:) + ngridx(:)*cutoff
 
+      ! convert coordinates to integer hashes
       allocate (gridhash(npoints))
       gridhash = coordsToHash(npoints, dim, x, minx, ngridx, cutoff)
 
+      ! perform argsort with idx as keys
       allocate (idx(npoints))
       call sort_hashes(npoints, gridhash, idx)
 
+      ! rearrange gridhash and x using keys
       call rearrange(npoints, dim, idx, gridhash, x)
 
+      ! find where each cell starts in the point array
       allocate (starts(product(ngridx)))
       call find_starts(dim, npoints, ngridx, gridhash, starts)
 
+      ! calculate which adjacent cells to search, based on the dimension of the
+      ! problem
       n_adj = (3**(dim - 1) - 1)/2
       allocate (adj_cell_hash_increment(n_adj))
       call getAdjacentCellsHashIncrement(dim, ngridx, adj_cell_hash_increment)
 
+      ! perform sweep to find pairs
       npairs = 0
       do hashi = gridhash(1), gridhash(npoints)
          do i = starts(hashi), starts(hashi + 1) - 1
@@ -235,6 +263,9 @@ contains
    end subroutine cellList
 
    subroutine cellList_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
+      ! performs the pair search, without reordering x.
+      ! steps are the same, except the rearrange_withtmpx subroutine is used
+      ! instead of rearrange, and subsequently, x_tmp is used instead of x.
 
       implicit none
       integer, intent(in):: dim, npoints, maxnpair
