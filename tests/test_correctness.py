@@ -1,4 +1,5 @@
-import ancillary, closefriends, scipy
+import ancillary, closefriends
+from scipy.spatial import cKDTree
 
 
 def compare_ND(dim, maxPairsPerPoint):
@@ -10,7 +11,7 @@ def compare_ND(dim, maxPairsPerPoint):
         2. sort entire list by first index in each pair
     """
 
-    tree = scipy.spatial.cKDTree(x.transpose())
+    tree = cKDTree(x.transpose())
     pairs_scipy = tree.query_pairs(cutoff, output_type="ndarray")
     pairs_scipy = sorted([sorted(xi) for xi in pairs_scipy])
 
