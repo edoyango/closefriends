@@ -13,12 +13,11 @@ module closefriends
 
 contains
 
-   subroutine rearrange(n, dim, idx, gridhash, x, undo)
+   subroutine rearrange(n, dim, idx, gridhash, x)
       ! rearranges gridhash and x, using the indices obtained from a sort by
       ! key.
 
       implicit none
-      logical, intent(in):: undo
       integer, intent(in):: n, dim, idx(n)
       integer, intent(inout):: gridhash(n)
       double precision, intent(inout):: x(dim, n)
@@ -28,26 +27,38 @@ contains
 
       allocate (tmpgridhash(n), tmpx(dim, n))
 
-      if (undo) then
-
-         do i = 1, n
-            tmpgridhash(idx(i)) = gridhash(i)
-            tmpx(:, idx(i)) = x(:, i)
-         end do
-
-      else
-
-         do i = 1, n
-            tmpgridhash(i) = gridhash(idx(i))
-            tmpx(:, i) = x(:, idx(i))
-         end do
-
-      end if
+      do i = 1, n
+         tmpgridhash(i) = gridhash(idx(i))
+         tmpx(:, i) = x(:, idx(i))
+      end do
 
       gridhash(:) = tmpgridhash(:)
       x(:, :) = tmpx(:, :)
 
    end subroutine rearrange
+
+   subroutine rearrange_withtmpx(n, dim, idx, gridhash, x, x_tmp)
+      ! rearranges gridhash and x, using the indices obtained from a sort by
+      ! key.
+
+      implicit none
+      integer, intent(in):: n, dim, idx(n)
+      integer, intent(inout):: gridhash(n)
+      double precision, intent(in):: x(dim, n)
+      integer, allocatable:: tmpgridhash(:)
+      double precision, intent(out):: x_tmp(dim, n)
+      integer:: i
+
+      allocate (tmpgridhash(n))
+
+      do i = 1, n
+         tmpgridhash(i) = gridhash(idx(i))
+         x_tmp(:, i) = x(:, idx(i))
+      end do
+
+      gridhash(:) = tmpgridhash(:)
+
+   end subroutine rearrange_withtmpx
 
    !---------------------------------------------------------------------------
    subroutine find_starts(dim, n, ngridx, gridhash, starts)
@@ -198,7 +209,7 @@ contains
       allocate (idx(npoints))
       call sort_hashes(npoints, gridhash, idx)
 
-      call rearrange(npoints, dim, idx, gridhash, x, undo=.false.)
+      call rearrange(npoints, dim, idx, gridhash, x)
 
       allocate (starts(product(ngridx)))
       call find_starts(dim, npoints, ngridx, gridhash, starts)
@@ -220,6 +231,64 @@ contains
          end do
       end do
 
+      pair_i(1:npairs) = pair_i(1:npairs) - 1  ! -1 for Python 0-indexing
+      pair_j(1:npairs) = pair_j(1:npairs) - 1
+
    end subroutine cellList
+
+   subroutine cellList_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pair_i, pair_j)
+
+      implicit none
+      integer, intent(in):: dim, npoints, maxnpair
+      double precision, intent(in):: cutoff, x(dim, npoints)
+      integer, intent(out):: npairs, pair_i(maxnpair), pair_j(maxnpair)
+      integer:: i, i_adj, hashi, hashj, ngridx(dim), n_adj
+      double precision:: minx(dim), maxx(dim)
+      integer, allocatable:: gridhash(:), idx(:), starts(:), adj_cell_hash_increment(:)
+      double precision, allocatable:: x_tmp(:, :)
+
+      minx(:) = minval(x, dim=2)
+      maxx(:) = maxval(x, dim=2)
+
+      minx(:) = minx(:) - 2.d0*cutoff
+      maxx(:) = maxx(:) + 2.d0*cutoff
+
+      ngridx(:) = int((maxx(:) - minx(:))/cutoff) + 1
+      maxx(:) = maxx(:) + ngridx(:)*cutoff
+
+      allocate (gridhash(npoints))
+      gridhash = coordsToHash(npoints, dim, x, minx, ngridx, cutoff)
+
+      allocate (idx(npoints), x_tmp(dim, npoints))
+      call sort_hashes(npoints, gridhash, idx)
+
+      call rearrange_withtmpx(npoints, dim, idx, gridhash, x, x_tmp)
+
+      allocate (starts(product(ngridx)))
+      call find_starts(dim, npoints, ngridx, gridhash, starts)
+
+      n_adj = (3**(dim - 1) - 1)/2
+      allocate (adj_cell_hash_increment(n_adj))
+      call getAdjacentCellsHashIncrement(dim, ngridx, adj_cell_hash_increment)
+
+      npairs = 0
+      do hashi = gridhash(1), gridhash(npoints)
+         do i = starts(hashi), starts(hashi + 1) - 1
+            call update_pair_list(dim, npoints, maxnpair, cutoff, i + 1, starts(hashi + 2) - 1, i, x_tmp, npairs, &
+                                  pair_i, pair_j)
+            do i_adj = 1, n_adj
+               hashj = hashi + adj_cell_hash_increment(i_adj)
+               call update_pair_list(dim, npoints, maxnpair, cutoff, starts(hashj), starts(hashj + 3) - 1, i, x_tmp, &
+                                     npairs, pair_i, pair_j)
+            end do
+         end do
+      end do
+
+      do i = 1, npairs
+         pair_i(i) = idx(pair_i(i)) - 1 ! -1 for Python 0-indexing
+         pair_j(i) = idx(pair_j(i)) - 1 
+      end do
+
+   end subroutine cellList_noreorder
 
 end module closefriends
