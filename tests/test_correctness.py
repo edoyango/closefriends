@@ -20,5 +20,41 @@ def test_1D():
     '''
     pairs_closefriends = closefriends.celllist(x, cutoff, maxnpair).transpose()
     pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
+
+    assert pairs_closefriends == pairs_scipy
+
+def test_2D():
+    x, cutoff, maxnpair = ancillary.setupf(2, 100, 13)
+
+    tree = scipy.spatial.cKDTree(x.transpose())
+    pairs_scipy = tree.query_pairs(cutoff, output_type="ndarray")
+    pairs_scipy = sorted([sorted(xi) for xi in pairs_scipy])
+    
+    pairs_closefriends = closefriends.celllist(x, cutoff, maxnpair).transpose()
+    pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
+    
+    assert pairs_closefriends == pairs_scipy
+
+def test_3D():
+    x, cutoff, maxnpair = ancillary.setupf(3, 100, 34)
+
+    tree = scipy.spatial.cKDTree(x.transpose())
+    pairs_scipy = tree.query_pairs(cutoff, output_type="ndarray")
+    pairs_scipy = sorted([sorted(xi) for xi in pairs_scipy])
+    
+    pairs_closefriends = closefriends.celllist(x, cutoff, maxnpair).transpose()
+    pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
+    
+    assert pairs_closefriends == pairs_scipy
+
+def test_5D():
+    x, cutoff, maxnpair = ancillary.setupf(5, 100, 170)
+
+    tree = scipy.spatial.cKDTree(x.transpose())
+    pairs_scipy = tree.query_pairs(cutoff, output_type="ndarray")
+    pairs_scipy = sorted([sorted(xi) for xi in pairs_scipy])
+    
+    pairs_closefriends = closefriends.celllist(x, cutoff, maxnpair).transpose()
+    pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
     
     assert pairs_closefriends == pairs_scipy
