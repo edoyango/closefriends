@@ -21,7 +21,7 @@ def compare_ND(dim, maxPairsPerPoint):
         2. sort each pair so the lower index is first
         3. sort entire list by first index in each pair
     """
-    pairs_closefriends = closefriends.celllist(x, cutoff, maxnpair).transpose()
+    pairs_closefriends = closefriends.query_pairs(x, cutoff, maxnpair).transpose()
     pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
 
     return pairs_closefriends == pairs_scipy

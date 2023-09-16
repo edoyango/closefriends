@@ -12,6 +12,6 @@ def test_returnarray():
     from ancillary import setupf
 
     x, cutoff, maxnpair = setupf(3, 100, 60)
-    pairs = closefriends.celllist(x, cutoff, maxnpair)
+    pairs = closefriends.query_pairs(x, cutoff, maxnpair)
     pairshape = pairs.shape
     assert (len(pairshape) == 2) & (pairshape[0] == 2)

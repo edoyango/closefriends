@@ -41,7 +41,7 @@ contains
    end subroutine rearrange
 
    !----------------------------------------------------------------------------
-   subroutine rearrange_withtmpx(n, dim, idx, gridhash, x, x_tmp)
+   subroutine rearrange_with_xtmp(n, dim, idx, gridhash, x, x_tmp)
       ! same as above, except doesn't modify x, and returns x_tmp instead.
 
       implicit none
@@ -61,7 +61,7 @@ contains
 
       gridhash(:) = tmpgridhash(:)
 
-   end subroutine rearrange_withtmpx
+   end subroutine rearrange_with_xtmp
 
    !---------------------------------------------------------------------------
    subroutine find_starts(dim, n, ngridx, gridhash, starts)
@@ -110,7 +110,7 @@ contains
    end subroutine update_pair_list
 
    !----------------------------------------------------------------------------
-   function idxToHash(dim, idx, ngridx) result(hash)
+   function idx_to_hash(dim, idx, ngridx) result(hash)
       ! function to convert an arbitrary-dimensioned index array to a single
       ! hash integer
 
@@ -125,10 +125,10 @@ contains
          cum_prod = cum_prod*ngridx(i)
       end do
 
-   end function idxToHash
+   end function idx_to_hash
 
    !----------------------------------------------------------------------------
-   function didxTodHash(dim, idx, ngridx) result(hash)
+   function didx_to_dhash(dim, idx, ngridx) result(hash)
       ! function to convert incremental, arbitrary-dimensioned, index array to
       ! a single incremental hash integer
 
@@ -143,10 +143,10 @@ contains
          cum_prod = cum_prod*ngridx(i)
       end do
 
-   end function didxTodHash
+   end function didx_to_dhash
 
    !----------------------------------------------------------------------------
-   function hashToIdx(dim, hash, ngridx) result(idx)
+   function hash_to_idx(dim, hash, ngridx) result(idx)
       ! function to convert a single hash integer to an arbitrary-dimensioned
       ! index array
 
@@ -162,10 +162,10 @@ contains
          rem = mod(hash - 1, cum_prod)
       end do
 
-   end function hashToIdx
+   end function hash_to_idx
 
    !----------------------------------------------------------------------------
-   subroutine getAdjacentCellsHashIncrement(dim, ngridx, adjHash)
+   subroutine get_adjacent_cells_hash_increment(dim, ngridx, adjHash)
       ! function to determine which adjacent cells to search
 
       implicit none
@@ -177,14 +177,14 @@ contains
       quasi_hash(:) = 3
 
       do i = 0, nAdj - 1
-         idx = hashToIdx(dim, 3*i + 1, quasi_hash) - 2
-         adjHash(i + 1) = didxTodHash(dim, idx, ngridx)
+         idx = hash_to_idx(dim, 3*i + 1, quasi_hash) - 2
+         adjHash(i + 1) = didx_to_dhash(dim, idx, ngridx)
       end do
 
-   end subroutine getAdjacentCellsHashIncrement
+   end subroutine get_adjacent_cells_hash_increment
 
    !----------------------------------------------------------------------------
-   function coordsToHash(n, dim, x, minx, ngridx, cutoff) result(gridhash)
+   function coords_to_hash(n, dim, x, minx, ngridx, cutoff) result(gridhash)
       ! function to convert raw double coordinates to integer hashes
 
       implicit none
@@ -194,13 +194,13 @@ contains
 
       do i = 1, n
          icell(:) = int((x(:, i) - minx(:))/cutoff) + 1
-         gridhash(i) = idxToHash(dim, icell, ngridx)
+         gridhash(i) = idx_to_hash(dim, icell, ngridx)
       end do
 
-   end function coordsToHash
+   end function coords_to_hash
 
    !----------------------------------------------------------------------------
-   subroutine cellList(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
+   subroutine query_pairs(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
       ! performs the pair search, and reorders x
 
       implicit none
@@ -226,7 +226,7 @@ contains
 
       ! convert coordinates to integer hashes
       allocate (gridhash(npoints))
-      gridhash = coordsToHash(npoints, dim, x, minx, ngridx, cutoff)
+      gridhash = coords_to_hash(npoints, dim, x, minx, ngridx, cutoff)
 
       ! perform argsort with idx as keys
       allocate (idx(npoints))
@@ -243,7 +243,7 @@ contains
       ! problem
       n_adj = (3**(dim - 1) - 1)/2
       allocate (adj_cell_hash_increment(n_adj))
-      call getAdjacentCellsHashIncrement(dim, ngridx, adj_cell_hash_increment)
+      call get_adjacent_cells_hash_increment(dim, ngridx, adj_cell_hash_increment)
 
       ! perform sweep to find pairs
       npairs = 0
@@ -260,9 +260,9 @@ contains
 
       pairs(:, 1:npairs) = pairs(:, 1:npairs) - 1  ! -1 for Python 0-indexing
 
-   end subroutine cellList
+   end subroutine query_pairs
 
-   subroutine cellList_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
+   subroutine query_pairs_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
       ! performs the pair search, without reordering x.
       ! steps are the same, except the rearrange_withtmpx subroutine is used
       ! instead of rearrange, and subsequently, x_tmp is used instead of x.
@@ -286,19 +286,19 @@ contains
       maxx(:) = maxx(:) + ngridx(:)*cutoff
 
       allocate (gridhash(npoints))
-      gridhash = coordsToHash(npoints, dim, x, minx, ngridx, cutoff)
+      gridhash = coords_to_hash(npoints, dim, x, minx, ngridx, cutoff)
 
       allocate (idx(npoints), x_tmp(dim, npoints))
       call sort_hashes(npoints, gridhash, idx)
 
-      call rearrange_withtmpx(npoints, dim, idx, gridhash, x, x_tmp)
+      call rearrange_with_xtmp(npoints, dim, idx, gridhash, x, x_tmp)
 
       allocate (starts(product(ngridx)))
       call find_starts(dim, npoints, ngridx, gridhash, starts)
 
       n_adj = (3**(dim - 1) - 1)/2
       allocate (adj_cell_hash_increment(n_adj))
-      call getAdjacentCellsHashIncrement(dim, ngridx, adj_cell_hash_increment)
+      call get_adjacent_cells_hash_increment(dim, ngridx, adj_cell_hash_increment)
 
       npairs = 0
       do hashi = gridhash(1), gridhash(npoints)
@@ -318,6 +318,6 @@ contains
          pairs(2, i) = idx(pairs(2, i)) - 1
       end do
 
-   end subroutine cellList_noreorder
+   end subroutine query_pairs_noreorder
 
 end module closefriends
