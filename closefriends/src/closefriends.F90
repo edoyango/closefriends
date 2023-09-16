@@ -82,14 +82,14 @@ contains
    end subroutine find_starts
 
    !---------------------------------------------------------------------------
-   subroutine update_pair_list(dim, n, maxnpair, cutoff, jstart, jend, i, x, npairs, pair_i, pair_j)
+   subroutine update_pair_list(dim, n, maxnpair, cutoff, jstart, jend, i, x, npairs, pairs)
       ! subroutine to loop over sequential grid cells and check if j point is
       ! within a given i point
 
       implicit none
       integer, intent(in):: jstart, jend, i, n, maxnpair, dim
       double precision, intent(in):: cutoff, x(dim, n)
-      integer, intent(inout):: npairs, pair_i(maxnpair), pair_j(maxnpair)
+      integer, intent(inout):: npairs, pairs(2, maxnpair)
       !    integer, intent(inout):: npairs, pair_i(0:), pair_j(0:)
       integer:: j
       double precision:: r2
@@ -98,8 +98,8 @@ contains
          r2 = sum((x(:, i) - x(:, j))**2)
          if (r2 <= cutoff*cutoff) then
             npairs = npairs + 1
-            pair_i(npairs) = i
-            pair_j(npairs) = j
+            pairs(1, npairs) = i
+            pairs(2, npairs) = j
             !  npairs = npairs + merge(1, 0, r2 <= cutoff*cutoff)
          end if
       end do
@@ -183,13 +183,13 @@ contains
 
    end function coordsToHash
 
-   subroutine cellList(dim, npoints, x, cutoff, maxnpair, npairs, pair_i, pair_j)
+   subroutine cellList(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
 
       implicit none
       integer, intent(in):: dim, npoints, maxnpair
       double precision, intent(in):: cutoff
       double precision, intent(inout):: x(dim, npoints)
-      integer, intent(out):: npairs, pair_i(maxnpair), pair_j(maxnpair)
+      integer, intent(out):: npairs, pairs(2, maxnpair)
       integer:: i, i_adj, hashi, hashj, ngridx(dim), n_adj
       double precision:: minx(dim), maxx(dim)
       integer, allocatable:: gridhash(:), idx(:), starts(:), adj_cell_hash_increment(:)
@@ -221,27 +221,25 @@ contains
       npairs = 0
       do hashi = gridhash(1), gridhash(npoints)
          do i = starts(hashi), starts(hashi + 1) - 1
-            call update_pair_list(dim, npoints, maxnpair, cutoff, i + 1, starts(hashi + 2) - 1, i, x, npairs, pair_i, &
-                                  pair_j)
+            call update_pair_list(dim, npoints, maxnpair, cutoff, i + 1, starts(hashi + 2) - 1, i, x, npairs, pairs)
             do i_adj = 1, n_adj
                hashj = hashi + adj_cell_hash_increment(i_adj)
                call update_pair_list(dim, npoints, maxnpair, cutoff, starts(hashj), starts(hashj + 3) - 1, i, x, &
-                                     npairs, pair_i, pair_j)
+                                     npairs, pairs)
             end do
          end do
       end do
 
-      pair_i(1:npairs) = pair_i(1:npairs) - 1  ! -1 for Python 0-indexing
-      pair_j(1:npairs) = pair_j(1:npairs) - 1
+      pairs(:, 1:npairs) = pairs(:, 1:npairs) - 1  ! -1 for Python 0-indexing
 
    end subroutine cellList
 
-   subroutine cellList_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pair_i, pair_j)
+   subroutine cellList_noreorder(dim, npoints, x, cutoff, maxnpair, npairs, pairs)
 
       implicit none
       integer, intent(in):: dim, npoints, maxnpair
       double precision, intent(in):: cutoff, x(dim, npoints)
-      integer, intent(out):: npairs, pair_i(maxnpair), pair_j(maxnpair)
+      integer, intent(out):: npairs, pairs(2, maxnpair)
       integer:: i, i_adj, hashi, hashj, ngridx(dim), n_adj
       double precision:: minx(dim), maxx(dim)
       integer, allocatable:: gridhash(:), idx(:), starts(:), adj_cell_hash_increment(:)
@@ -275,18 +273,18 @@ contains
       do hashi = gridhash(1), gridhash(npoints)
          do i = starts(hashi), starts(hashi + 1) - 1
             call update_pair_list(dim, npoints, maxnpair, cutoff, i + 1, starts(hashi + 2) - 1, i, x_tmp, npairs, &
-                                  pair_i, pair_j)
+                                  pairs)
             do i_adj = 1, n_adj
                hashj = hashi + adj_cell_hash_increment(i_adj)
                call update_pair_list(dim, npoints, maxnpair, cutoff, starts(hashj), starts(hashj + 3) - 1, i, x_tmp, &
-                                     npairs, pair_i, pair_j)
+                                     npairs, pairs)
             end do
          end do
       end do
 
       do i = 1, npairs
-         pair_i(i) = idx(pair_i(i)) - 1 ! -1 for Python 0-indexing
-         pair_j(i) = idx(pair_j(i)) - 1
+         pairs(1, i) = idx(pairs(1, i)) - 1 ! -1 for Python 0-indexing
+         pairs(2, i) = idx(pairs(2, i)) - 1
       end do
 
    end subroutine cellList_noreorder
