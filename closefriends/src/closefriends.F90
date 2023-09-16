@@ -286,7 +286,7 @@ contains
 
       do i = 1, npairs
          pair_i(i) = idx(pair_i(i)) - 1 ! -1 for Python 0-indexing
-         pair_j(i) = idx(pair_j(i)) - 1 
+         pair_j(i) = idx(pair_j(i)) - 1
       end do
 
    end subroutine cellList_noreorder
