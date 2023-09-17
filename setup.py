@@ -1,13 +1,16 @@
-from numpy.distutils.core import setup, Extension
-
-ext = Extension('closefriends.closefriends',
-                       sources=['closefriends/src/closefriends.F90', 'closefriends/src/sort.cpp'],
-                       libraries=['gfortran'],
-                       extra_compile_args=['-O3'],
-                       f2py_options=['only:', 'query_pairs', 'query_pairs_noreorder',':',])
+from setuptools import setup, Extension
+import pybind11
 
 setup(
     name='closefriends',
-    packages=['closefriends'],
-    ext_modules=[ext]
+    version='0.1',
+    ext_modules=[
+        Extension(
+            'closefriends',
+            sources=['src/closefriends.cpp'],
+            include_dirs=[pybind11.get_include()],
+            language='c++',
+            extra_compile_args=["-O3"]
+        ),
+    ],
 )
