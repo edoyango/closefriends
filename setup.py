@@ -9,8 +9,26 @@ ext_modules = [Extension(
                         extra_compile_args=["-O3"]
                        )]
 
+dev_requirements = [
+    "scipy",
+    "pytest"
+]
+
 setup(
     name='closefriends',
-    version='0.1',
-    ext_modules=ext_modules
+    version='0.0.1',
+    description="A package to find point pairs in a point cloud within a fixed distance using a Cell lists data-structure.",
+    author="Edward Yang",
+    author_email="edward_yang_125@hotmail.com",
+    ext_modules=ext_modules,
+    install_requires=[
+        "pybind11",
+        "setuptools",
+        "wheel",
+        "numpy",
+        'importlib-metadata; python_version == "3.10"'
+    ],
+    extras_requires={
+        "dev": dev_requirements
+    }
 )
