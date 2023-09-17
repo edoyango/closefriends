@@ -1,10 +1,11 @@
-from setuptools import setup, Extension
-import pybind11
+from setuptools import setup
+from pybind11.setup_helpers import Pybind11Extension, build_ext
+from pybind11 import get_include
 
-ext_modules = [Extension(
+ext_modules = [Pybind11Extension(
                         'closefriends',
                         sources=['src/closefriends.cpp'],
-                        include_dirs=[pybind11.get_include()],
+                        include_dirs=[get_include()],
                         language='c++',
                         extra_compile_args=["-O3"],
                         cpp_standard=11
@@ -23,13 +24,11 @@ setup(
     author_email="edward_yang_125@hotmail.com",
     ext_modules=ext_modules,
     install_requires=[
-        "pybind11",
-        "setuptools",
-        "wheel",
         "numpy",
         'importlib-metadata; python_version == "3.10"'
     ],
     extras_requires={
         "dev": dev_requirements
-    }
+    },
+    cmdclass={"build_ext": build_ext}
 )
