@@ -3,7 +3,7 @@ from scipy.spatial import cKDTree
 
 
 def compare_ND(dim, maxPairsPerPoint):
-    x, cutoff, maxnpair = ancillary.setupf(dim, 100, maxPairsPerPoint)
+    x, cutoff, maxnpair = ancillary.setupc(dim, 100, maxPairsPerPoint)
 
     """
     output is (100, dim) ndarray. To compare, need to:
@@ -11,7 +11,7 @@ def compare_ND(dim, maxPairsPerPoint):
         2. sort entire list by first index in each pair
     """
 
-    tree = cKDTree(x.transpose())
+    tree = cKDTree(x)
     pairs_scipy = tree.query_pairs(cutoff, output_type="ndarray")
     pairs_scipy = sorted([sorted(xi) for xi in pairs_scipy])
 
@@ -21,9 +21,9 @@ def compare_ND(dim, maxPairsPerPoint):
         2. sort each pair so the lower index is first
         3. sort entire list by first index in each pair
     """
-    pairs_closefriends = closefriends.query_pairs(x, cutoff, maxnpair).transpose()
+    pairs_closefriends = closefriends.query_pairs(x, cutoff, maxnpair)
+    print(pairs_closefriends)
     pairs_closefriends = sorted([sorted(xi) for xi in pairs_closefriends])
-
     return pairs_closefriends == pairs_scipy
 
 
