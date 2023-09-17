@@ -6,7 +6,8 @@ ext_modules = [Extension(
                         sources=['src/closefriends.cpp'],
                         include_dirs=[pybind11.get_include()],
                         language='c++',
-                        extra_compile_args=["-O3"]
+                        extra_compile_args=["-O3"],
+                        cpp_standard=11
                        )]
 
 dev_requirements = [
