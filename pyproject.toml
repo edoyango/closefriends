@@ -2,7 +2,7 @@
 name = "closefriends"
 version = "0.1.0"
 description = "A package to find point pairs in a point cloud within a fixed distance using a Cell lists data-structure."
-authors = ["Edward Yang"]
+authors = ["Edward Yang <edward_yang_125@hotmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
@@ -14,5 +14,5 @@ pytest = "^7.4.2"
 scipy = "^1.11.2"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools", "wheel", "pybind11"]
+build-backend = "setuptools.build_meta"
