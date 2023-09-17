@@ -9,9 +9,9 @@ def test_import():
 
 def test_returnarray():
     import closefriends
-    from ancillary import setupf
+    from ancillary import setupc
 
-    x, cutoff, maxnpair = setupf(3, 100, 60)
+    x, cutoff, maxnpair = setupc(3, 100, 60)
     pairs = closefriends.query_pairs(x, cutoff, maxnpair)
     pairshape = pairs.shape
-    assert (len(pairshape) == 2) & (pairshape[0] == 2)
+    assert (len(pairshape) == 2) & (pairshape[1] == 2)
