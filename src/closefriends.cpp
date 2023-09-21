@@ -4,6 +4,10 @@
 #include <limits>
 #include <algorithm>
 #include <iostream>
+#include <set>
+#include <tuple>
+#include <pybind11/stl.h>
+#include <string>
 
 namespace py = pybind11;
 
@@ -141,16 +145,16 @@ std::vector<int> getAdjacentCellsHashIncrement(const int ndims, const std::vecto
 }
 
 // loop over sequential grid cells and check if j point is within a given i point --------------------------------------
-void updatePairList(const int ndims, 
-                    const int npoints,
-                    const int maxnpair, 
-                    const double cutoff,
-                    const int jstart,
-                    const int jend, 
-                    const int i,
-                    const std::vector<double*> &x,
-                    int &npairs,
-                    py::array_t<int, py::array::c_style> pairs) {
+void updatePairList_ndarray(const int ndims, 
+                            const int npoints,
+                            const int maxnpair, 
+                            const double cutoff,
+                            const int jstart,
+                            const int jend, 
+                            const int i,
+                            const std::vector<double*> &x,
+                            int &npairs,
+                            py::array_t<int, py::array::c_style> pairs) {
     for (int j = jstart; j < jend; ++j) {
         double r2 = 0.;
         for (int d = 0; d < ndims; ++d) 
@@ -164,8 +168,11 @@ void updatePairList(const int ndims,
 }
 
 // performs the pair search, without reordering x ----------------------------------------------------------------------
-py::array_t<int, py::array::c_style> 
-query_pairs(py::array_t<double, py::array::c_style> &input_array, double cutoff, int maxnpair) {
+py::object
+query_pairs(py::array_t<double, py::array::c_style> &input_array, 
+            double cutoff, 
+            int maxnpair, 
+            const std::string &output_type = "set") {
 
     // create wrapper pointer for 2D indexing
     const std::vector<double*> x = indexArray(input_array);
@@ -210,28 +217,47 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array, double cutoff,
     // calculate which adjacent cells to search, based on the dimension of the problem
     std::vector<int> adjCellHashIncrement = getAdjacentCellsHashIncrement(ndims, ngridx);
 
-    // perform sweep to find pairs
-    py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
-    int npairs = 0;
-    for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
-        for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
-            updatePairList(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs);
-            for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
-                const int hashj = hashi + adjCellHashIncrement[iAdj];
-                updatePairList(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, npairs, pairs);
+        // perform sweep to find pairs
+        py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
+        int npairs = 0;
+        for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
+            for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
+                updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs);
+                for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
+                    const int hashj = hashi + adjCellHashIncrement[iAdj];
+                    updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, 
+                        npairs, pairs);
+                }
             }
+
+        // modify pair indicies to refer to original positions
+        for (int i = 0; i < npairs; ++i) {
+            *pairs.mutable_data(i, 0) = idx[*pairs.data(i, 0)];
+            *pairs.mutable_data(i, 1) = idx[*pairs.data(i, 1)];
         }
 
-    // modify pair indicies to refer to original positions
-    for (int i = 0; i < npairs; ++i) {
-        *pairs.mutable_data(i, 0) = idx[*pairs.data(i, 0)];
-        *pairs.mutable_data(i, 1) = idx[*pairs.data(i, 1)];
-    }
+        // truncate array to exclude empty entries of pairs
+        py::slice slice_row(0, npairs, 1);
+        py::array rarray = pairs[slice_row];
 
-    // truncate array to exclude empty entries of pairs
-    py::slice slice_row(0, npairs, 1);
-    py::array rarray = pairs[slice_row];
-    return rarray;
+    if (output_type == "ndarray") {
+
+        return rarray;
+
+    } else if (output_type == "set") {
+
+        // perform sweep to find pairs
+        std::set<std::tuple<int, int>> pairs_set;
+        auto rarray_data = rarray.unchecked<int, 2>();
+        for (int i = 0; i < npairs; ++i) {
+            std::tuple<int, int> pair = std::make_tuple(rarray_data(i, 0), rarray_data(i, 1));;
+            pairs_set.insert(pair);
+        }
+
+        return py::cast(pairs_set);
+    } else {
+        throw std::invalid_argument("name '" + output_type + "' is not defined");
+    }
 }
 
 // register module
@@ -239,5 +265,6 @@ PYBIND11_MODULE(closefriends, m) {
     m.def("query_pairs", &query_pairs, "A function which sums up all the elements of a 2D array", 
         py::arg("data"), 
         py::arg("r"), 
-        py::arg("maxnpair"));
+        py::arg("maxnpair"),
+        py::arg("output_type") = "set");
 }
