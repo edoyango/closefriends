@@ -236,5 +236,8 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array, double cutoff,
 
 // register module
 PYBIND11_MODULE(closefriends, m) {
-    m.def("query_pairs", &query_pairs, "A function which sums up all the elements of a 2D array");
+    m.def("query_pairs", &query_pairs, "A function which sums up all the elements of a 2D array", 
+        py::arg("data"), 
+        py::arg("r"), 
+        py::arg("maxnpair"));
 }
