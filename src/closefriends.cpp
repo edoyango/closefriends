@@ -55,15 +55,16 @@ std::vector<int> hashToIdx(const int ndims, const int hash, const std::vector<in
 }
 
 // performs argsort ----------------------------------------------------------------------------------------------------
-std::vector<int> sortHashes(int n, std::vector<int> hashes) {
+py::array_t<int, py::array::c_style> sortHashes(int n, std::vector<int> hashes) {
 
-    std::vector<int> idx(n);
+    py::array_t<int, py::array::c_style> idx(n);
+    int* idx_ptr = idx.mutable_data();
 
     // filling idx with numbers 0:n-1
-    for (int i = 0; i < n; ++i) idx[i] = i;
+    for (int i = 0; i < n; ++i) idx_ptr[i] = i;
 
     // sorting idx based on hashes
-    std::sort(idx.begin(), idx.end(), 
+    std::sort(idx_ptr, idx_ptr+n, 
         [&](const int& a, const int& b) {
             return (hashes[a] < hashes[b]);
         }
@@ -75,7 +76,7 @@ std::vector<int> sortHashes(int n, std::vector<int> hashes) {
 // same as above, except doesn't modify x, and returns tmp_x instead ---------------------------------------------------
 void rearrangeWithTmpx(const int ndims, 
                        const int npoints, 
-                       const std::vector<int> &idx, 
+                       const int* idx, 
                        std::vector<int> &gridhash, 
                        const std::vector<double*> &x, 
                        std::vector<double*> &tmp_x) {
@@ -167,12 +168,22 @@ void updatePairList_ndarray(const int ndims,
     }
 }
 
+// overwrite input array
+void overwrite_input_x(py::array_t<double, py::array::c_style> target, py::array_t<double, py::array::c_style> source) {
+    py::buffer_info target_info = target.request();
+    py::buffer_info source_info = source.request();
+    double* target_ptr = static_cast<double*>(target_info.ptr);
+    double* source_ptr = static_cast<double*>(source_info.ptr);
+    std::copy(source_ptr, source_ptr+target_info.size, target_ptr);
+}
+
 // performs the pair search, without reordering x ----------------------------------------------------------------------
 py::object
 query_pairs(py::array_t<double, py::array::c_style> &input_array, 
             double cutoff, 
             int maxnpair, 
-            const std::string &output_type = "set") {
+            const std::string &output_type = "set",
+            const bool retain_order = false) {
 
     // create wrapper pointer for 2D indexing
     const std::vector<double*> x = indexArray(input_array);
@@ -202,14 +213,15 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     std::vector<int> gridhash = coordsToHash(ndims, npoints, x, mingridx, ngridx, cutoff);
 
     // perform argsort with idx as keys
-    std::vector<int> idx = sortHashes(npoints, gridhash);
+    py::array_t<int, py::array::c_style> idx = sortHashes(npoints, gridhash);
+    int* idx_ptr = idx.mutable_data();
 
     // copy input data into tmp_input_array and create wrapper pointer
     py::array_t<double, py::array::c_style> tmp_input_array = input_array.attr("copy")();
     std::vector<double*> tmp_x = indexArray(tmp_input_array);
 
     // rearrange gridhash and x using keys
-    rearrangeWithTmpx(ndims, npoints, idx, gridhash, x, tmp_x);
+    rearrangeWithTmpx(ndims, npoints, idx_ptr, gridhash, x, tmp_x);
 
     // find where each cell starts in the point array
     std::vector<int> starts = findStarts(ndims, npoints, ngridx, gridhash);
@@ -230,10 +242,11 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
                 }
             }
 
+    if (retain_order)
         // modify pair indicies to refer to original positions
         for (int i = 0; i < npairs; ++i) {
-            *pairs.mutable_data(i, 0) = idx[*pairs.data(i, 0)];
-            *pairs.mutable_data(i, 1) = idx[*pairs.data(i, 1)];
+            *pairs.mutable_data(i, 0) = idx_ptr[*pairs.data(i, 0)];
+            *pairs.mutable_data(i, 1) = idx_ptr[*pairs.data(i, 1)];
         }
 
         // truncate array to exclude empty entries of pairs
@@ -242,7 +255,13 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     if (output_type == "ndarray") {
 
-        return rarray;
+        if (retain_order) {
+            return rarray;
+        } else {
+            overwrite_input_x(input_array, tmp_input_array);
+            return py::make_tuple(rarray, idx);
+        }
+        
 
     } else if (output_type == "set") {
 
@@ -254,7 +273,12 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
             pairs_set.insert(pair);
         }
 
-        return py::cast(pairs_set);
+        if (retain_order) {
+            py::cast(pairs_set);
+        } else {
+            overwrite_input_x(input_array, tmp_input_array);
+            return py::make_tuple(py::cast(pairs_set), idx);
+        }
     } else {
         throw std::invalid_argument("name '" + output_type + "' is not defined");
     }
@@ -266,5 +290,6 @@ PYBIND11_MODULE(closefriends, m) {
         py::arg("data"), 
         py::arg("r"), 
         py::arg("maxnpair"),
-        py::arg("output_type") = "set");
+        py::arg("output_type") = "set",
+        py::arg("retain_order") = false);
 }
