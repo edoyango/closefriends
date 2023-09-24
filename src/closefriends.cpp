@@ -76,7 +76,7 @@ py::array_t<int, py::array::c_style> sortHashes(int n, std::vector<int> hashes) 
 // same as above, except doesn't modify x, and returns tmp_x instead ---------------------------------------------------
 void rearrangeWithTmpx(const int ndims, 
                        const int npoints, 
-                       const int* idx, 
+                       const py::detail::unchecked_reference<int, 1> idx, 
                        std::vector<int> &gridhash, 
                        const std::vector<double*> &x, 
                        std::vector<double*> &tmp_x) {
@@ -84,9 +84,9 @@ void rearrangeWithTmpx(const int ndims,
     std::vector<int> tmp_gridhash(npoints);
     
     for (int i = 0; i < npoints; ++i) {
-        tmp_gridhash[i] = gridhash[idx[i]];
+        tmp_gridhash[i] = gridhash[idx(i)];
         for (int d = 0; d < ndims; ++d)
-            tmp_x[i][d] = x[idx[i]][d];
+            tmp_x[i][d] = x[idx(i)][d];
     }
 
     for (int i = 0; i < npoints; ++i)
@@ -214,14 +214,14 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     // perform argsort with idx as keys
     py::array_t<int, py::array::c_style> idx = sortHashes(npoints, gridhash);
-    int* idx_ptr = idx.mutable_data();
+    py::detail::unchecked_reference<int, 1> idx_data = idx.unchecked<1>();
 
     // copy input data into tmp_input_array and create wrapper pointer
     py::array_t<double, py::array::c_style> tmp_input_array = input_array.attr("copy")();
     std::vector<double*> tmp_x = indexArray(tmp_input_array);
 
     // rearrange gridhash and x using keys
-    rearrangeWithTmpx(ndims, npoints, idx_ptr, gridhash, x, tmp_x);
+    rearrangeWithTmpx(ndims, npoints, idx_data, gridhash, x, tmp_x);
 
     // find where each cell starts in the point array
     std::vector<int> starts = findStarts(ndims, npoints, ngridx, gridhash);
@@ -229,29 +229,32 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     // calculate which adjacent cells to search, based on the dimension of the problem
     std::vector<int> adjCellHashIncrement = getAdjacentCellsHashIncrement(ndims, ngridx);
 
-        // perform sweep to find pairs
-        py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
-        int npairs = 0;
-        for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
-            for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
-                updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs);
-                for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
-                    const int hashj = hashi + adjCellHashIncrement[iAdj];
-                    updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, 
-                        npairs, pairs);
-                }
+    // perform sweep to find pairs
+    py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
+    int npairs = 0;
+    for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
+        for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
+            updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs);
+            for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
+                const int hashj = hashi + adjCellHashIncrement[iAdj];
+                updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, 
+                    npairs, pairs);
             }
-
-    if (retain_order)
-        // modify pair indicies to refer to original positions
-        for (int i = 0; i < npairs; ++i) {
-            *pairs.mutable_data(i, 0) = idx_ptr[*pairs.data(i, 0)];
-            *pairs.mutable_data(i, 1) = idx_ptr[*pairs.data(i, 1)];
         }
 
-        // truncate array to exclude empty entries of pairs
-        py::slice slice_row(0, npairs, 1);
-        py::array rarray = pairs[slice_row];
+    // modify pair indices to refer to original positions
+    // also ensures pairs[k, 0] < pairs[k, 1]
+    if (retain_order)
+        for (int k = 0; k < npairs; ++k) {
+            int i = idx_data(*pairs.data(k, 0));
+            int j = idx_data(*pairs.data(k, 1));
+            *pairs.mutable_data(k, 0) = std::min(i, j);
+            *pairs.mutable_data(k, 1) = std::max(i, j);
+        }
+
+    // truncate array to exclude empty entries of pairs
+    py::slice slice_row(0, npairs, 1), slice_col(0, 2, 1);
+    py::array_t<int> rarray(pairs[py::make_tuple(slice_row, slice_col)]);
 
     if (output_type == "ndarray") {
 
@@ -267,9 +270,9 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
         // perform sweep to find pairs
         std::set<std::tuple<int, int>> pairs_set;
-        auto rarray_data = rarray.unchecked<int, 2>();
+        auto rarray_data = rarray.unchecked<2>();
         for (int i = 0; i < npairs; ++i) {
-            std::tuple<int, int> pair = std::make_tuple(rarray_data(i, 0), rarray_data(i, 1));;
+            std::tuple<int, int> pair = std::make_tuple(rarray_data(i, 0), rarray_data(i, 1));
             pairs_set.insert(pair);
         }
 
