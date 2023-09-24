@@ -259,7 +259,7 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
         }
 
         if (retain_order) {
-            py::cast(pairs_set);
+            return py::cast(pairs_set);
         } else {
             overwrite_input_x(input_array, tmp_input_array);
             return py::make_tuple(py::cast(pairs_set), idx);
