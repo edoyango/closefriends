@@ -64,22 +64,18 @@ To see how the data is reordered, consider the configuration below:
 
 
 ```python
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 
-sc = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
-cb = plt.colorbar(sc)
+ax = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
+cb = plt.colorbar(ax, label="Index in point array")
+txt = plt.title("Indices of points BEFORE closefriends.query_pairs")
+txt = plt.xlabel("x-coordinate")
+txt = plt.ylabel("y-coordinate")
 ```
 
 
-
-
-    <matplotlib.colorbar.Colorbar at 0x7ff2345def80>
-
-
-
-
     
-![png](README_files/README_3_1.png)
+![png](README_files/README_3_0.png)
     
 
 
@@ -89,22 +85,20 @@ When running `closefriends.query_pairs` on this array of points, the particles a
 ```python
 pairs, idx = closefriends.query_pairs(x, r, maxnpair)
 
-sc = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
-plt.colorbar(sc)
+ax = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
+cb = plt.colorbar(ax, label="Index in point array")
+txt = plt.title("Indices of points AFTER closefriends.query_pairs")
+txt = plt.xlabel("x-coordinate")
+txt = plt.ylabel("y-coordinate")
 ```
 
 
-
-
-    <matplotlib.colorbar.Colorbar at 0x7ff2343bb220>
-
-
-
-
     
-![png](README_files/README_5_1.png)
+![png](README_files/README_5_0.png)
     
 
+
+For your convenience, the `idx` array is returned, which tells you the old index of each point in the modified array. For example, if `idx[0]` is equal to `10`, this means that the point located at the position 0, used to be located at position 10. This should allow you to reorder other data as needed.
 
 ### NDArray output
 
