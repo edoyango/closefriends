@@ -26,7 +26,6 @@ def compare_ND_ndarray(dim, maxPairsPerPoint):
     tree = cKDTree(x)
     pairs_scipy = tree.query_pairs(cutoff, output_type="set")
     pairs_scipy = sorted([sorted(list(xi)) for xi in pairs_scipy])
-    print(pairs_scipy)
 
     """
     output is (dim, 100) ndarray. To compare, need to:
