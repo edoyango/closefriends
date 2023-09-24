@@ -67,7 +67,7 @@ To see how the data is reordered, consider the configuration below:
 from matplotlib import pyplot as plt
 
 sc = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
-plt.colorbar(sc)
+cb = plt.colorbar(sc)
 ```
 
 
