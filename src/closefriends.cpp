@@ -11,25 +11,6 @@
 
 namespace py = pybind11;
 
-// return a pointer for 2D indexing (might be unnecessary) -------------------------------------------------------------
-template <typename T>
-std::vector<T*> indexArray(const py::array_t<T, py::array::c_style> &input_array) {
-    py::buffer_info buf_info = input_array.request();
-    // if (buf_info.ndim != 2)
-        // throw std::runtime_error("Expected a 2D array");
-
-    T* ptr = static_cast<T *>(buf_info.ptr);
-    const int npoints = buf_info.shape[0];
-    const int ndims = buf_info.shape[1];
-
-    std::vector<T*> arr(npoints);
-
-    for (int i = 0; i < npoints; ++i, ptr += ndims)
-        arr[i] = ptr;
-
-    return arr;
-}
-
 // convert an arbitrary-dimensioned index array to a single hash integer -----------------------------------------------
 int idxToHash(const int ndims, const std::vector<int> &idx, const std::vector<int> &ngridx) {
     int hash = 0, cum_prod = 1;
@@ -79,14 +60,14 @@ void rearrangeWithTmpx(const int ndims,
                        const py::detail::unchecked_reference<int, 1> idx, 
                        std::vector<int> &gridhash, 
                        const py::detail::unchecked_reference<double, 2> &x, 
-                       std::vector<double*> &tmp_x) {
+                       py::detail::unchecked_mutable_reference<double, 2> &tmp_x) {
 
     std::vector<int> tmp_gridhash(npoints);
     
     for (int i = 0; i < npoints; ++i) {
         tmp_gridhash[i] = gridhash[idx(i)];
         for (int d = 0; d < ndims; ++d)
-            tmp_x[i][d] = x(idx(i), d);
+            tmp_x(i, d) = x(idx(i), d);
     }
 
     for (int i = 0; i < npoints; ++i)
@@ -146,23 +127,23 @@ std::vector<int> getAdjacentCellsHashIncrement(const int ndims, const std::vecto
 }
 
 // loop over sequential grid cells and check if j point is within a given i point --------------------------------------
-void updatePairList_ndarray(const int ndims, 
-                            const int npoints,
-                            const int maxnpair, 
-                            const double cutoff,
-                            const int jstart,
-                            const int jend, 
-                            const int i,
-                            const std::vector<double*> &x,
-                            int &npairs,
-                            py::array_t<int, py::array::c_style> pairs) {
+void updatePairList(const int ndims, 
+                    const int npoints,
+                    const int maxnpair, 
+                    const double cutoff,
+                    const int jstart,
+                    const int jend, 
+                    const int i,
+                    const py::detail::unchecked_mutable_reference<double, 2>  &x,
+                    int &npairs,
+                    py::detail::unchecked_mutable_reference<int, 2> pairs_data) {
     for (int j = jstart; j < jend; ++j) {
         double r2 = 0.;
         for (int d = 0; d < ndims; ++d) 
-            r2 += (x[i][d]-x[j][d])*(x[i][d]-x[j][d]);
+            r2 += (x(i, d)-x(j, d))*(x(i, d)-x(j, d));
         if (r2 <= cutoff*cutoff) {
-            *pairs.mutable_data(npairs, 0) = i;
-            *pairs.mutable_data(npairs, 1) = j;
+            pairs_data(npairs, 0) = i;
+            pairs_data(npairs, 1) = j;
             npairs++;
         }
     }
@@ -218,7 +199,7 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     // copy input data into tmp_input_array and create wrapper pointer
     py::array_t<double, py::array::c_style> tmp_input_array = input_array.attr("copy")();
-    std::vector<double*> tmp_x = indexArray(tmp_input_array);
+    py::detail::unchecked_mutable_reference<double, 2> tmp_x = tmp_input_array.mutable_unchecked<2>();
 
     // rearrange gridhash and x using keys
     rearrangeWithTmpx(ndims, npoints, idx_data, gridhash, x, tmp_x);
@@ -231,14 +212,15 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     // perform sweep to find pairs
     py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
+    py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
     int npairs = 0;
     for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
         for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
-            updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs);
+            updatePairList(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs_data);
             for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
                 const int hashj = hashi + adjCellHashIncrement[iAdj];
-                updatePairList_ndarray(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, 
-                    npairs, pairs);
+                updatePairList(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, npairs, 
+                    pairs_data);
             }
         }
 
@@ -248,8 +230,8 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
         for (int k = 0; k < npairs; ++k) {
             int i = idx_data(*pairs.data(k, 0));
             int j = idx_data(*pairs.data(k, 1));
-            *pairs.mutable_data(k, 0) = std::min(i, j);
-            *pairs.mutable_data(k, 1) = std::max(i, j);
+            pairs_data(k, 0) = std::min(i, j);
+            pairs_data(k, 1) = std::max(i, j);
         }
 
     // truncate array to exclude empty entries of pairs
