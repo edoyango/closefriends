@@ -101,13 +101,12 @@ std::vector<int> findStarts(const int ndims,
     for (int d = 0; d < ndims; ++d) 
         ngridx_prod *= ngridx[d];
     std::vector<int> starts(ngridx_prod);
-    for (int i = 0; i <= gridhash[0]; ++i) 
-        starts[i] = 0;
+    for (int i = 0; i <= gridhash[0]; ++i) starts[i] = 0;
     for (int i = 1; i < npoints; ++i)
         if (gridhash[i] != gridhash[i-1])
             for (int j = gridhash[i-1]+1; j <= gridhash[i]; ++j) 
                 starts[j] = i;
-    for (int i = gridhash[npoints-1]; i < ngridx_prod; ++i) starts[i] = npoints;
+    for (int i = gridhash[npoints-1]+1; i < ngridx_prod; ++i) starts[i] = npoints;
 
     return starts;
 }
@@ -116,9 +115,9 @@ std::vector<int> findStarts(const int ndims,
 std::vector<int> getAdjacentCellsHashIncrement(const int ndims, const std::vector<int> &ngridx) {
     const int nAdj = (std::pow(3, ndims-1)-1)/2;
     std::vector<int> adjHashInc(nAdj);
-    const std::vector<int> quasi_hash(ndims, 3);
+    const std::vector<int> quasi_ngridx(ndims, 3);
     for (int i = 0; i < nAdj; ++i) {
-        std::vector<int> idx = hashToIdx(ndims, 3*i, quasi_hash);
+        std::vector<int> idx = hashToIdx(ndims, 3*i, quasi_ngridx);
         for (int d = 0; d < ndims; ++d)
             idx[d] -= 1;
         adjHashInc[i] = idxToHash(ndims, idx, ngridx);
