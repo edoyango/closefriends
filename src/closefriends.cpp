@@ -78,7 +78,7 @@ void rearrangeWithTmpx(const int ndims,
                        const int npoints, 
                        const py::detail::unchecked_reference<int, 1> idx, 
                        std::vector<int> &gridhash, 
-                       const std::vector<double*> &x, 
+                       const py::detail::unchecked_reference<double, 2> &x, 
                        std::vector<double*> &tmp_x) {
 
     std::vector<int> tmp_gridhash(npoints);
@@ -86,7 +86,7 @@ void rearrangeWithTmpx(const int ndims,
     for (int i = 0; i < npoints; ++i) {
         tmp_gridhash[i] = gridhash[idx(i)];
         for (int d = 0; d < ndims; ++d)
-            tmp_x[i][d] = x[idx(i)][d];
+            tmp_x[i][d] = x(idx(i), d);
     }
 
     for (int i = 0; i < npoints; ++i)
@@ -97,14 +97,14 @@ void rearrangeWithTmpx(const int ndims,
 // convert raw double coordinates to integer hashes --------------------------------------------------------------------
 std::vector<int> coordsToHash(const int ndims, 
                               const int npoints, 
-                              const std::vector<double*> &x, 
+                              const py::detail::unchecked_reference<double, 2> &x, 
                               const std::vector<double> &minx, 
                               const std::vector<int> &ngridx,
                               const double cutoff) {
     std::vector<int> gridhash(npoints), icell(ndims);
     for (int i = 0; i < npoints; ++i) {
         for (int d = 0; d < ndims; ++d)
-            icell[d] = static_cast<int>((x[i][d]-minx[d])/cutoff);
+            icell[d] = static_cast<int>((x(i, d)-minx[d])/cutoff);
         gridhash[i] = idxToHash(ndims, icell, ngridx);
     }
     return gridhash;
@@ -186,7 +186,7 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
             const bool retain_order = false) {
 
     // create wrapper pointer for 2D indexing
-    const std::vector<double*> x = indexArray(input_array);
+    py::detail::unchecked_reference<double, 2> x = input_array.unchecked<2>();
     const int npoints = input_array.request().shape[0]; // get npoints from input array
     const int ndims = input_array.request().shape[1]; // get dims from input array
 
@@ -196,8 +196,8 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     for (int i = 0; i < npoints; ++i)
         for (int d = 0; d < ndims; ++d) {
-            mingridx[d] = std::min(mingridx[d], x[i][d]);
-            maxgridx[d] = std::max(maxgridx[d], x[i][d]);
+            mingridx[d] = std::min(mingridx[d], x(i, d));
+            maxgridx[d] = std::max(maxgridx[d], x(i, d));
         }
 
     // extend bounding box by two cells in each dimensions, calculate number of grid cells and adjust maximum extent
@@ -270,7 +270,7 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
         // perform sweep to find pairs
         std::set<std::tuple<int, int>> pairs_set;
-        auto rarray_data = rarray.unchecked<2>();
+        py::detail::unchecked_reference<int, 2> rarray_data = rarray.unchecked<2>();
         for (int i = 0; i < npairs; ++i) {
             std::tuple<int, int> pair = std::make_tuple(rarray_data(i, 0), rarray_data(i, 1));
             pairs_set.insert(pair);
