@@ -275,6 +275,6 @@ PYBIND11_MODULE(closefriends, m) {
         py::arg("data"), 
         py::arg("r"), 
         py::arg("maxnpair"),
-        py::arg("output_type") = "set",
+        py::arg("output_type") = "ndarray",
         py::arg("retain_order") = false);
 }
