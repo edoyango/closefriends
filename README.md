@@ -103,3 +103,16 @@ For your convenience, the `idx` array is returned, which tells you the old index
 ### NDArray output
 
 Like `scipy.KDTree.query_pairs`, the output can be returned either as a set of tuples, or a 2D ndarray. The latter is the default, as it is faster to iterate over sequentially. Return a `set` by passing `output_type = "set"`. Or explicitly ask for an NDArray to be returned with `output_type = "ndarray"`.
+
+## Performance
+
+First consider uniformly random points generated using `np.rng.random()`:
+
+![Heatmap of speedup of closefriends.query_pairs over scipy.KDTree.query_pairs](perfstats/square_constantpairs.png)
+
+For  3 dims and lower, `closefriends.query_pairs()` maintains at least 2x speedup over `scipy.KDTree.query_pairs` (both the creation of the tree, and querying pairs). The relative speed is less as the number of dimensions increase, but `closefriends` apparently retains better performance for larger problem sizes.
+
+
+```python
+
+```
