@@ -143,7 +143,7 @@ void updatePairList(const int ndims,
         if (r2 <= cutoff*cutoff) {
             pairs_data(npairs, 0) = i;
             pairs_data(npairs, 1) = j;
-            npairs++;
+            npairs = std::min(maxnpair, npairs + 1);
         }
     }
 }
@@ -222,6 +222,8 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
                     pairs_data);
             }
         }
+
+    if (npairs==maxnpair) throw py::buffer_error("Max number of pairs, as indicated by maxnpair, isn't large enough!");
 
     // modify pair indices to refer to original positions
     // also ensures pairs[k, 0] < pairs[k, 1]
