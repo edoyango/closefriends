@@ -52,6 +52,12 @@ for i, pair in enumerate(pairs):
     (11, 23)
 
 
+A couple key differences between the usage of `scipy.KDTree.query_pairs` and `closefriends.query_pairs`:
+* default output type is "ndarray". This is because:
+    * ndarrays are faster to iterate over in one direction, and
+    * the speed of both `closefriends` and `scipy.KDTree` is overwhelmingly dominated by the insertion of values into the set.
+* a maxnpair value is needed. This tells `closefriends.query_pairs` how large the pairs array needs to be (for performance reasons). If the number of pairs found is larger than the provided `maxnpair`, then a `BufferError` is thrown with an error message
+
 ### Sorting strategy
 
 Closefriends sorts the position using a grid by mapping each gridcell into a single integer. The positions are then sorted by these hashes. The benefit is that it improves data locality, i.e., points that are located nearby, are also located nearby in memory. This makes it faster to iterate over the list of pairs. 
@@ -75,7 +81,7 @@ txt = plt.ylabel("y-coordinate")
 
 
     
-![png](README_files/README_3_0.png)
+![png](README_files/README_4_0.png)
     
 
 
@@ -94,7 +100,7 @@ txt = plt.ylabel("y-coordinate")
 
 
     
-![png](README_files/README_5_0.png)
+![png](README_files/README_6_0.png)
     
 
 
@@ -106,13 +112,8 @@ Like `scipy.KDTree.query_pairs`, the output can be returned either as a set of t
 
 ## Performance
 
-First consider uniformly random points generated using `np.rng.random()`:
+First consider uniform random points generated using `np.rng.random()`. The number of pairs per point is kept approximately constant with by defining the cutoff as `npoints**(-1./dim)`. The speedups of `closefriends.query_pairs` over `scipy.KDTree.query_pairs` (constructing the tree + querying pairs):
 
 ![Heatmap of speedup of closefriends.query_pairs over scipy.KDTree.query_pairs](perfstats/square_constantpairs.png)
 
-For  3 dims and lower, `closefriends.query_pairs()` maintains at least 2x speedup over `scipy.KDTree.query_pairs` (both the creation of the tree, and querying pairs). The relative speed is less as the number of dimensions increase, but `closefriends` apparently retains better performance for larger problem sizes.
-
-
-```python
-
-```
+For  3 dims and lower, `closefriends.query_pairs()` maintains at least 2x speedup over `scipy.KDTree.query_pairs`. The relative speed is less as the number of dimensions increase, but `closefriends` apparently retains better performance for larger problem sizes. But key for the purpose of this tool, is that for 2D and 3D problems, closefriends is significantly faster.
