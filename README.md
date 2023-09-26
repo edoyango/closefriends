@@ -117,3 +117,5 @@ First consider uniform random points generated using `np.rng.random()`. The numb
 ![Heatmap of speedup of closefriends.query_pairs over scipy.KDTree.query_pairs](perfstats/square_constantpairs.png)
 
 For  3 dims and lower, `closefriends.query_pairs()` maintains at least 2x speedup over `scipy.KDTree.query_pairs`. The relative speed is less as the number of dimensions increase, but `closefriends` apparently retains better performance for larger problem sizes. But key for the purpose of this tool, is that for 2D and 3D problems, closefriends is significantly faster.
+
+if `retain_order = True` is used, the performance should reduce a bit, but should overall still be fast.
