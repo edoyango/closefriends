@@ -161,8 +161,8 @@ void overwrite_input_x(py::array_t<double, py::array::c_style> target, py::array
 // performs the pair search, without reordering x ----------------------------------------------------------------------
 py::object
 query_pairs(py::array_t<double, py::array::c_style> &input_array, 
-            double cutoff, 
-            int maxnpair, 
+            const double cutoff, 
+            const int maxnpair, 
             const std::string &output_type = "seperate-ndarrays",
             const bool retain_order = false) {
 
@@ -211,8 +211,6 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     std::vector<int> adjCellHashIncrement = getAdjacentCellsHashIncrement(ndims, ngridx);
 
     // perform sweep to find pairs
-    // py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
-    // py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
     py::array_t<int, py::array::c_style> pair_i(maxnpair), pair_j(maxnpair);
     py::detail::unchecked_mutable_reference<int, 1> pair_i_data = pair_i.mutable_unchecked<1>(), pair_j_data = pair_j.mutable_unchecked<1>();
     int npairs = 0;
@@ -244,7 +242,8 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     py::slice row_slice(0, npairs, 1);
     py::array_t<int> pair_i_trunc(pair_i[row_slice]), pair_j_trunc(pair_j[row_slice]);
 
-    if (output_type == "seperate-ndarrays") {
+    // return pairs and idx (if required) based on output_type
+    if (output_type == "seperate-ndarrays") { // pair_i and pair_j are fine
 
         if (retain_order) {
             return py::make_tuple(pair_i_trunc, pair_j_trunc);
@@ -252,7 +251,7 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
             return py::make_tuple(pair_i_trunc, pair_j_trunc, idx);
         }
 
-    } else if (output_type == "ndarray") {
+    } else if (output_type == "ndarray") { // pair_i and pair_j need to be merged and transposed
 
         py::array_t<int, py::array::c_style> pairs({npairs, 2});
         py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
@@ -268,13 +267,12 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
             return py::make_tuple(pairs, idx);
         }
 
-    } else if (output_type == "set") {
+    } else if (output_type == "set") { // pair_i and pair_j need to be turned into a set of pairs
 
-        // perform sweep to find pairs
+        // convert seperate ndarrays to set of pairs
         std::set<std::tuple<int, int>> pairs_set;
-        // py::detail::unchecked_reference<int, 2> rarray_data = rarray.unchecked<2>();
-        for (int i = 0; i < npairs; ++i) {
-            std::tuple<int, int> pair = std::make_tuple((*pair_i_trunc.data(i)), *(pair_j_trunc.data(i)));
+        for (int k = 0; k < npairs; ++k) {
+            std::tuple<int, int> pair = std::make_tuple((*pair_i_trunc.data(k)), *(pair_j_trunc.data(k)));
             pairs_set.insert(pair);
         }
 
