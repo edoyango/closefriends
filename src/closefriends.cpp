@@ -135,14 +135,15 @@ void updatePairList(const int ndims,
                     const int i,
                     const py::detail::unchecked_mutable_reference<double, 2>  &x,
                     int &npairs,
-                    py::detail::unchecked_mutable_reference<int, 2> pairs_data) {
+                    py::detail::unchecked_mutable_reference<int, 1> pair_i_data,
+                    py::detail::unchecked_mutable_reference<int, 1> pair_j_data) {
     for (int j = jstart; j < jend; ++j) {
         double r2 = 0.;
         for (int d = 0; d < ndims; ++d) 
             r2 += (x(i, d)-x(j, d))*(x(i, d)-x(j, d));
         if (r2 <= cutoff*cutoff) {
-            pairs_data(npairs, 0) = i;
-            pairs_data(npairs, 1) = j;
+            pair_i_data(npairs) = i;
+            pair_j_data(npairs) = j;
             npairs = std::min(maxnpair, npairs + 1);
         }
     }
@@ -162,7 +163,7 @@ py::object
 query_pairs(py::array_t<double, py::array::c_style> &input_array, 
             double cutoff, 
             int maxnpair, 
-            const std::string &output_type = "set",
+            const std::string &output_type = "seperate-ndarrays",
             const bool retain_order = false) {
 
     // create wrapper pointer for 2D indexing
@@ -210,16 +211,17 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     std::vector<int> adjCellHashIncrement = getAdjacentCellsHashIncrement(ndims, ngridx);
 
     // perform sweep to find pairs
-    py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
-    py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
+    // py::array_t<int, py::array::c_style> pairs({maxnpair, 2});
+    // py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
+    py::array_t<int, py::array::c_style> pair_i(maxnpair), pair_j(maxnpair);
+    py::detail::unchecked_mutable_reference<int, 1> pair_i_data = pair_i.mutable_unchecked<1>(), pair_j_data = pair_j.mutable_unchecked<1>();
     int npairs = 0;
     for (int hashi = gridhash[0]; hashi <= gridhash[npoints-1]; ++hashi)
         for (int i = starts[hashi]; i < starts[hashi+1]; ++i) {
-            updatePairList(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pairs_data);
+            updatePairList(ndims, npoints, maxnpair, cutoff, i+1, starts[hashi+2], i, tmp_x, npairs, pair_i_data, pair_j_data);
             for (uint iAdj = 0; iAdj < adjCellHashIncrement.size(); ++iAdj) {
                 const int hashj = hashi + adjCellHashIncrement[iAdj];
-                updatePairList(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, npairs, 
-                    pairs_data);
+                updatePairList(ndims, npoints, maxnpair, cutoff, starts[hashj], starts[hashj+3], i, tmp_x, npairs, pair_i_data, pair_j_data);
             }
         }
 
@@ -229,33 +231,49 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
     // also ensures pairs[k, 0] < pairs[k, 1]
     if (retain_order)
         for (int k = 0; k < npairs; ++k) {
-            int i = idx_data(*pairs.data(k, 0));
-            int j = idx_data(*pairs.data(k, 1));
-            pairs_data(k, 0) = std::min(i, j);
-            pairs_data(k, 1) = std::max(i, j);
+            int i = idx_data(*pair_i.data(k));
+            int j = idx_data(*pair_j.data(k));
+            pair_i_data(k) = std::min(i, j);
+            pair_j_data(k) = std::max(i, j);
         }
 
     // truncate array to exclude empty entries of pairs
-    py::slice slice_row(0, npairs, 1), slice_col(0, 2, 1);
-    py::array_t<int> rarray(pairs[py::make_tuple(slice_row, slice_col)]);
+    py::slice row_slice(0, npairs, 1);
+    py::array_t<int> pair_i_trunc(pair_i[row_slice]), pair_j_trunc(pair_j[row_slice]);
 
-    if (output_type == "ndarray") {
+    if (output_type == "seperate-ndarrays") {
 
         if (retain_order) {
-            return rarray;
+            return py::make_tuple(pair_i_trunc, pair_j_trunc);
         } else {
             overwrite_input_x(input_array, tmp_input_array);
-            return py::make_tuple(rarray, idx);
+            return py::make_tuple(pair_i_trunc, pair_j_trunc, idx);
         }
-        
+
+    } else if (output_type == "ndarray") {
+
+        py::array_t<int, py::array::c_style> pairs({npairs, 2});
+        py::detail::unchecked_mutable_reference<int, 2> pairs_data = pairs.mutable_unchecked<2>();
+
+        for (int k = 0; k < npairs; ++k) {
+            pairs_data(k, 0) = (*pair_i_trunc.data(k));
+            pairs_data(k, 1) = (*pair_j_trunc.data(k));
+        }
+
+        if (retain_order) {
+            return pairs;
+        } else {
+            overwrite_input_x(input_array, tmp_input_array);
+            return py::make_tuple(pairs, idx);
+        }
 
     } else if (output_type == "set") {
 
         // perform sweep to find pairs
         std::set<std::tuple<int, int>> pairs_set;
-        py::detail::unchecked_reference<int, 2> rarray_data = rarray.unchecked<2>();
+        // py::detail::unchecked_reference<int, 2> rarray_data = rarray.unchecked<2>();
         for (int i = 0; i < npairs; ++i) {
-            std::tuple<int, int> pair = std::make_tuple(rarray_data(i, 0), rarray_data(i, 1));
+            std::tuple<int, int> pair = std::make_tuple((*pair_i_trunc.data(i)), *(pair_j_trunc.data(i)));
             pairs_set.insert(pair);
         }
 
@@ -276,6 +294,6 @@ PYBIND11_MODULE(closefriends, m) {
         py::arg("data"), 
         py::arg("r"), 
         py::arg("maxnpair"),
-        py::arg("output_type") = "ndarray",
+        py::arg("output_type") = "seperate-ndarrays",
         py::arg("retain_order") = false);
 }
