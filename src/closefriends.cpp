@@ -229,13 +229,16 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
 
     // modify pair indices to refer to original positions
     // also ensures pairs[k, 0] < pairs[k, 1]
-    if (retain_order)
+    if (retain_order) {
         for (int k = 0; k < npairs; ++k) {
             int i = idx_data(*pair_i.data(k));
             int j = idx_data(*pair_j.data(k));
             pair_i_data(k) = std::min(i, j);
             pair_j_data(k) = std::max(i, j);
         }
+    } else {
+        overwrite_input_x(input_array, tmp_input_array);
+    }
 
     // truncate array to exclude empty entries of pairs
     py::slice row_slice(0, npairs, 1);
@@ -246,7 +249,6 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
         if (retain_order) {
             return py::make_tuple(pair_i_trunc, pair_j_trunc);
         } else {
-            overwrite_input_x(input_array, tmp_input_array);
             return py::make_tuple(pair_i_trunc, pair_j_trunc, idx);
         }
 
@@ -263,7 +265,6 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
         if (retain_order) {
             return pairs;
         } else {
-            overwrite_input_x(input_array, tmp_input_array);
             return py::make_tuple(pairs, idx);
         }
 
@@ -280,7 +281,6 @@ query_pairs(py::array_t<double, py::array::c_style> &input_array,
         if (retain_order) {
             return py::cast(pairs_set);
         } else {
-            overwrite_input_x(input_array, tmp_input_array);
             return py::make_tuple(py::cast(pairs_set), idx);
         }
     } else {
