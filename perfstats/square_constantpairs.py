@@ -45,7 +45,7 @@ for i, dim in enumerate(dims_iterator):
     for j, npoints in enumerate(npoints_iterator):
         seed += 1
         setup_stmt = setup_stmt_generator(seed, dim, npoints)
-        run_stmt = "pairs = cf.query_pairs(x, cutoff, maxnpair, output_type='ndarray')"
+        run_stmt = "pairs = cf.query_pairs(x, cutoff, maxnpair, output_type='seperate-ndarrays')"
         times_cf_square[i, j] = timeit(run_stmt, setup_stmt, number = 5)
 
 df_sp_square = pd.DataFrame(times_sp_square, index=dims_iterator, columns=npoints_iterator)

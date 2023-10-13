@@ -6,14 +6,21 @@ strategy and sorting to improve sequential iteration over the pair list (like de
 ## Motivation
 
 In the Python world, there is already the well-established KDTree sub-module for finding pairs of points within an
-arbitrary-dimensioned particle cloud. This is not the optimal algorithm to use such as in particle-/point-based
-numerical methods, like in Smoothed Particle Hydrodynamics (SPH) used for CFD. For this particular case, closefriends
-can be 1.5 to 3 times faster than using `scipy.KDTree.query_pairs`.
+arbitrary-dimensioned particle cloud. It can be a little slow in some cases. For the purposes of Weakly-Compressible
+Smoothed Particle Hydrodymics simulations (WCSPH), this package is faster for finding pairs by:
+
+* using cell lists, which can be faster for 1/2/3D problems;
+* using user-defined pre-sized arrays to store resultant pairs, which can speed up code by 2-3x.
+
+The use of pre-sized arrays is significantly faster, but comes at the cost of less user-friendliness. This is because
+you must provide an upper limit on number of pairs, and if the actual number of pairs found is higher, the function
+fails (with an error message). For WCSPH simulations, the upper limit is known apriori, and doesn't change throughout
+the simulation.
 
 ## Usage
 
 The `closefrieds.query_pairs` function accepts a 2D Numpy `ndarray` where rows represent each point, and colums
-represent particles' coordinates.
+represent points' coordinates.
 
 
 ```python
@@ -53,9 +60,11 @@ for i, pair in enumerate(pairs):
 
 
 A couple key differences between the usage of `scipy.KDTree.query_pairs` and `closefriends.query_pairs`:
-* default output type is "ndarray". This is because:
-    * ndarrays are faster to iterate over in one direction, and
-    * the speed of both `closefriends` and `scipy.KDTree` is overwhelmingly dominated by the insertion of values into the set.
+* a third output type `output_type="seperate-ndarrays"` is available. This produces two 1D arrays that describe the pairs.
+    * This results in faster performance when combined with `numpy.ufunc.at`.
+* default output type is `"seperate-ndarrays"`. This is because: 
+    * the intended use case of this package prefers seperate 1D arrays instead of a single ndarray;
+    * when using `output_type="set"`, the time taken for both `closefriends` and `scipy.KDTree` is overwhelmingly dominated by the insertion of values into the set.
 * a maxnpair value is needed. This tells `closefriends.query_pairs` how large the pairs array needs to be (for performance reasons). If the number of pairs found is larger than the provided `maxnpair`, then a `BufferError` is thrown with an error message
 
 ### Sorting strategy
@@ -89,7 +98,7 @@ When running `closefriends.query_pairs` on this array of points, the particles a
 
 
 ```python
-pairs, idx = closefriends.query_pairs(x, r, maxnpair)
+pair_i, pair_j, idx = closefriends.query_pairs(x, r, maxnpair)
 
 ax = plt.scatter(x[:, 0], x[:, 1], c=np.arange(npoints))
 cb = plt.colorbar(ax, label="Index in point array")
@@ -108,7 +117,7 @@ For your convenience, the `idx` array is returned, which tells you the old index
 
 ### NDArray output
 
-Like `scipy.KDTree.query_pairs`, the output can be returned either as a set of tuples, or a 2D ndarray. The latter is the default, as it is faster to iterate over sequentially. Return a `set` by passing `output_type = "set"`. Or explicitly ask for an NDArray to be returned with `output_type = "ndarray"`.
+Like `scipy.KDTree.query_pairs`, the output can be returned either as a set of tuples, or a 2D ndarray. Return a `set` by passing `output_type = "set"`. Or explicitly ask for an NDArray to be returned with `output_type = "ndarray"`.
 
 ## Performance
 
@@ -118,4 +127,6 @@ First consider uniform random points generated using `np.rng.random()`. The numb
 
 For  3 dims and lower, `closefriends.query_pairs()` maintains at least 2x speedup over `scipy.KDTree.query_pairs`. The relative speed is less as the number of dimensions increase, but `closefriends` apparently retains better performance for larger problem sizes. But key for the purpose of this tool, is that for 2D and 3D problems, closefriends is significantly faster.
 
-if `retain_order = True` is used, the performance should reduce a bit, but should overall still be fast.
+if `retain_order = True` and/or `output_type = "ndarray"` are used, the performance should reduce a bit, but should overall still be fast.
+
+
